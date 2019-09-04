@@ -241,3 +241,4 @@ CreateEmitter 发射器 subscribe方法即 emmitter.onNext(1);
 ObserveOnObserver`,从`CreateEmitter.onNext()`开始依次递归调用`SubscribeOnObserver,ObserveOnObserver,LambdaObserver`
 * 4、被观察者的线程调度在`ObservableSubscribeOn`中在ScribeTask线程中执行了 `ObservableCreate.subscribe()`从而改变的执行线程
 * 5、ObserveOnObserver本身就是一个Runnable接口，所以本身就是可以控制线程的执行
+* 6
