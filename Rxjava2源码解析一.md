@@ -2,6 +2,7 @@
 ## 目录
 ### 1、Observable与Observer
 ### 2、Rxjava线程调度原理
+### 3、observeOn与subscribeOn控制线程的执行顺序解析
 
 ## 一、Observable与Observer
 上游：Observable
@@ -244,4 +245,63 @@ CreateEmitter 发射器 subscribe方法即 emmitter.onNext(1);
 ObserveOnObserver`,从`CreateEmitter.onNext()`开始依次递归调用`SubscribeOnObserver,ObserveOnObserver,LambdaObserver`
 * 4、被观察者的线程调度在`ObservableSubscribeOn`中在ScribeTask线程中执行了 `ObservableCreate.subscribe()`从而改变的执行线程
 * 5、ObserveOnObserver本身就是一个Runnable接口，所以本身就是可以控制线程的执行
-* 6
+
+### 三、observeOn与subscribeOn控制线程的执行顺序解析
+```java
+//写法一
+observableCreate.observeOn(Schedulers.newThread()).subscribeOn(Schedulers.io());
+//伪代码执行顺序为
+ObservableSubscribeOn.subscribeActual(observer){
+  SubscribeOnObserver<T> soo = new SubscribeOnObserver<T>(observer);
+  st = new SubscribeTask(soo){
+    run(){
+      ObservableObserveOn.subscribeActual(soo){
+        OOnO = new ObserveOnObserver<T>(observer, w, delayError, bufferSize);
+        observableCreate.subscribeActual(OOnO){
+            emitter.onNext(1){
+              OOnO.onNext(1){
+                //切换了线程
+                worker.schedule(this){
+                   soo.onNext(1){
+                     observer.onNext(1);
+                   }
+                };
+              }
+            }
+        }
+      }
+    }
+  }
+}
+
+```
+```java
+//写法二
+observableCreate.subscribeOn(Schedulers.io()).observeOn(Schedulers.newThread());
+//伪代码执行顺序
+ObservableObserveOn.subscribeActual(observer){
+  OOnO = new ObserveOnObserver<T>(observer, w, delayError, bufferSize);
+  ObservableSubscribeOn.subscribeActual(OOnO){
+    SubscribeOnObserver<T> soo = new SubscribeOnObserver<T>(OOnO);
+    st = new SubscribeTask(soo){
+      //切换了线程
+      run(){
+        emitter.onNext(1){
+          soo.onNext(1){
+            OOnO.onNext(1){
+              worker.schedule(this){
+                observer.onNext(1);
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
+```
+* 从上面执行的结果可以看出，subscribeOn、observeOn的顺序 并不影响观察者与被观察者线程
+的切换，主要原因是因为，ObservableSubscribeOn是在subscribeActual中先切换线程再向上迭代，而ObservableObserveOn总是先向上迭代，只有在emitter.onNext发射完之后迭代到ObserveOnObserver时才会在自身这里切换线程
+#####  可以得出结论，多个subscribeOn，与observeOn多个切换线程时，切换的顺序为
+* subscribeOn(N) ——> subscribeOn(N-1)——>....——>subscribeOn(1)——>observeOn(1)——>
+....observeOn(N);

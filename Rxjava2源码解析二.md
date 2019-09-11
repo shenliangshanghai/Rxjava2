@@ -4,7 +4,6 @@
 ### 2、FlatMap源码解析
 ### 3、concatMap源码解析
 ### 4、concatMap为何在变换中有序输出
-### 5、常见场景中:模拟多个网络请求FlatMap整合流程以及线程调度过程源码解析
 
 ## 一、map
 * 用于对Observable中泛型类型的转换
